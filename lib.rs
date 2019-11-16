@@ -38,6 +38,7 @@ const NUM_MOUSE_BUTTONS: usize = 256 + 3;
 
 // ---
 
+#[derive(Clone)]
 struct Keys([KeyInput; NUM_KEYS]);
 
 impl fmt::Debug for Keys {
@@ -66,6 +67,7 @@ impl Default for Keys {
 
 // ---
 
+#[derive(Clone)]
 struct MouseButtons([MouseInput; NUM_MOUSE_BUTTONS]);
 
 impl fmt::Debug for MouseButtons {
@@ -132,7 +134,7 @@ impl From<KeyboardInput> for KeyInput {
 /// This struct accumulates input events and allows them to be used throughout the program. Its
 /// main purpose is to resolve issues of multiple keypresses per-frame as well as accumulating
 /// mouse events such as position and mousewheel events.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Input {
     keys_now: Keys,
     keys_before: Keys,
