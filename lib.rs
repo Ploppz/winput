@@ -54,12 +54,7 @@ impl Default for Keys {
     fn default() -> Self {
         let default = KeyInput {
             state: ElementState::Released,
-            modifiers: ModifiersState {
-                shift: false,
-                ctrl: false,
-                alt: false,
-                logo: false,
-            },
+            modifiers: ModifiersState::empty()
         };
         Keys([default; NUM_KEYS])
     }
@@ -83,12 +78,7 @@ impl Default for MouseButtons {
     fn default() -> Self {
         let default = MouseInput {
             state: ElementState::Released,
-            modifiers: ModifiersState {
-                shift: false,
-                ctrl: false,
-                alt: false,
-                logo: false,
-            },
+            modifiers: ModifiersState::empty(),
         };
         MouseButtons([default; NUM_MOUSE_BUTTONS])
     }
