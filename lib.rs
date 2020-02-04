@@ -4,7 +4,7 @@
 //! uses a 2-window for keyboard and mouse buttons so it can capture an inter-frame toggle while
 //! enforcing a single action per frame.
 //! ```
-//! use winit::*;
+//! use winit::event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode};
 //! use winput::Input;
 //!
 //! let mut input = Input::default();
@@ -16,7 +16,7 @@
 //!     modifiers: ModifiersState::default(),
 //! });
 //!
-//! assert![input.is_key_toggled_down(VirtualKeyCode::A)];
+//! assert!(input.is_key_toggled_down(VirtualKeyCode::A));
 //!
 //! input.register_mouse_position(1f32, 2f32);
 //! ```
@@ -44,9 +44,9 @@ struct Keys([KeyInput; NUM_KEYS]);
 impl fmt::Debug for Keys {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for idx in 0..self.0.len() - 1 {
-            write![f, "{:?}", self.0[idx]]?;
+            write!(f, "{:?}", self.0[idx])?;
         }
-        write![f, "{:?}", self.0.last()]
+        write!(f, "{:?}", self.0.last())
     }
 }
 
@@ -54,7 +54,7 @@ impl Default for Keys {
     fn default() -> Self {
         let default = KeyInput {
             state: ElementState::Released,
-            modifiers: ModifiersState::empty()
+            modifiers: ModifiersState::empty(),
         };
         Keys([default; NUM_KEYS])
     }
@@ -62,21 +62,27 @@ impl Default for Keys {
 
 // ---
 
+#[derive(Clone, Copy, Debug)]
+struct MouseState {
+    state: ElementState,
+    modifiers: ModifiersState,
+}
+
 #[derive(Clone)]
-struct MouseButtons([MouseInput; NUM_MOUSE_BUTTONS]);
+struct MouseButtons([MouseState; NUM_MOUSE_BUTTONS]);
 
 impl fmt::Debug for MouseButtons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for idx in 0..self.0.len() - 1 {
-            write![f, "{:?}", self.0[idx]]?;
+            write!(f, "{:?}", self.0[idx])?;
         }
-        write![f, "{:?}", self.0.last()]
+        write!(f, "{:?}", self.0.last())
     }
 }
 
 impl Default for MouseButtons {
     fn default() -> Self {
-        let default = MouseInput {
+        let default = MouseState {
             state: ElementState::Released,
             modifiers: ModifiersState::empty(),
         };
@@ -110,15 +116,6 @@ pub struct MouseInput {
 
 // ---
 
-impl From<KeyboardInput> for KeyInput {
-    fn from(input: KeyboardInput) -> Self {
-        KeyInput {
-            state: input.state,
-            modifiers: input.modifiers,
-        }
-    }
-}
-
 /// 2-window for accumulating [winit] input events.
 ///
 /// This struct accumulates input events and allows them to be used throughout the program. Its
@@ -138,6 +135,7 @@ pub struct Input {
     mouse_wheel: f32,
 
     mask_mouse: bool,
+    current_modifiers: ModifiersState,
 }
 
 impl Input {
@@ -156,6 +154,50 @@ impl Input {
 
     // ---
 
+    /// Register an arbitrary winit event.
+    ///
+    /// This function may completely ignore the event.
+    pub fn register_event<'a, T>(&mut self, input: &Event<'a, T>) {
+        match input {
+            Event::DeviceEvent { event, .. } => {
+                self.handle_device_event(event);
+            }
+            Event::WindowEvent { event, .. } => {
+                self.handle_window_event(event);
+            }
+            _ => {}
+        }
+    }
+
+    /// Set the current modifier state.
+    pub fn set_modifiers(&mut self, modifiers: ModifiersState) {
+        self.current_modifiers = modifiers;
+    }
+
+    fn handle_device_event(&mut self, event: &DeviceEvent) {
+        match event {
+            DeviceEvent::ModifiersChanged(modifiers) => {
+                self.current_modifiers = *modifiers;
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_window_event<'a>(&mut self, event: &WindowEvent<'a>) {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => {
+                self.register_key(input);
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.register_mouse_position(position.x as f32, position.y as f32);
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                self.register_mouse_wheel(delta);
+            }
+            _ => {}
+        }
+    }
+
     /// Register a keyboard input
     pub fn register_key(&mut self, input: &KeyboardInput) {
         if let KeyboardInput {
@@ -165,7 +207,10 @@ impl Input {
         {
             let keycode = *keycode as usize;
             self.keys_before.0[keycode] = self.keys_now.0[keycode];
-            self.keys_now.0[keycode] = KeyInput::from(*input);
+            self.keys_now.0[keycode] = KeyInput {
+                state: input.state,
+                modifiers: self.current_modifiers,
+            };
         }
     }
 
@@ -205,7 +250,10 @@ impl Input {
     pub fn register_mouse_input(&mut self, state: MouseInput, button: MouseButton) {
         let index = mouse_button_to_index(button);
         self.mouse_buttons_before.0[index] = self.mouse_buttons_now.0[index];
-        self.mouse_buttons_now.0[index] = state;
+        self.mouse_buttons_now.0[index] = MouseState {
+            state: state.state,
+            modifiers: self.current_modifiers,
+        };
     }
 
     /// Check if a mouse button is pressed
@@ -252,8 +300,13 @@ impl Input {
     }
 
     /// Register a scroll wheel event
-    pub fn register_mouse_wheel(&mut self, y: f32) {
-        self.mouse_wheel += y;
+    pub fn register_mouse_wheel(&mut self, delta: &MouseScrollDelta) {
+        match delta {
+            MouseScrollDelta::LineDelta(_, y) => {
+                self.mouse_wheel += y;
+            }
+            _ => {}
+        }
     }
 
     /// Get the current mouse position
@@ -319,9 +372,9 @@ mod tests {
             modifiers: ModifiersState::default(),
         });
 
-        assert_eq![true, input.is_key_toggled_down(VirtualKeyCode::A)];
-        assert_eq![false, input.is_key_toggled_up(VirtualKeyCode::A)];
-        assert_eq![true, input.is_key_down(VirtualKeyCode::A)];
+        assert_eq!(true, input.is_key_toggled_down(VirtualKeyCode::A));
+        assert_eq!(false, input.is_key_toggled_up(VirtualKeyCode::A));
+        assert_eq!(true, input.is_key_down(VirtualKeyCode::A));
     }
 
     #[test]
@@ -349,9 +402,9 @@ mod tests {
             modifiers: ModifiersState::default(),
         });
 
-        assert_eq![false, input.is_key_toggled_down(VirtualKeyCode::A)];
-        assert_eq![true, input.is_key_toggled_up(VirtualKeyCode::A)];
-        assert_eq![false, input.is_key_down(VirtualKeyCode::A)];
+        assert_eq!(false, input.is_key_toggled_down(VirtualKeyCode::A));
+        assert_eq!(true, input.is_key_toggled_up(VirtualKeyCode::A));
+        assert_eq!(false, input.is_key_down(VirtualKeyCode::A));
     }
 
     #[test]
@@ -365,31 +418,29 @@ mod tests {
             modifiers: ModifiersState::default(),
         });
 
+        input.set_modifiers(ModifiersState::CTRL);
+
         input.register_key(&KeyboardInput {
             scancode: 0,
             state: ElementState::Released,
             virtual_keycode: Some(VirtualKeyCode::A),
-            modifiers: ModifiersState {
-                ctrl: true,
-                ..ModifiersState::default()
-            },
+            modifiers: ModifiersState::default(),
         });
+
+        input.set_modifiers(ModifiersState::SHIFT);
 
         input.register_key(&KeyboardInput {
             scancode: 0,
             state: ElementState::Pressed,
             virtual_keycode: Some(VirtualKeyCode::A),
-            modifiers: ModifiersState {
-                shift: true,
-                ..ModifiersState::default()
-            },
+            modifiers: ModifiersState::default(),
         });
 
-        assert_eq![true, input.is_key_toggled_down(VirtualKeyCode::A)];
-        assert_eq![false, input.is_key_toggled_up(VirtualKeyCode::A)];
-        assert_eq![true, input.is_key_down(VirtualKeyCode::A)];
-        assert_eq![false, input.key_modifiers_state(VirtualKeyCode::A).ctrl];
-        assert_eq![true, input.key_modifiers_state(VirtualKeyCode::A).shift];
+        assert_eq!(true, input.is_key_toggled_down(VirtualKeyCode::A));
+        assert_eq!(false, input.is_key_toggled_up(VirtualKeyCode::A));
+        assert_eq!(true, input.is_key_down(VirtualKeyCode::A));
+        assert_eq!(false, input.key_modifiers_state(VirtualKeyCode::A).ctrl());
+        assert_eq!(true, input.key_modifiers_state(VirtualKeyCode::A).shift());
     }
 
     #[test]
@@ -420,15 +471,15 @@ mod tests {
             MouseButton::Left,
         );
 
-        assert_eq![true, input.is_mouse_button_toggled(MouseButton::Left)];
-        assert_eq![true, input.is_mouse_button_down(MouseButton::Left)];
-        assert_eq![false, input.is_mouse_button_up(MouseButton::Left)];
-        assert_eq![true, input.is_mouse_button_toggled_down(MouseButton::Left)];
-        assert_eq![false, input.is_mouse_button_toggled_up(MouseButton::Left)];
-        assert_eq![
+        assert_eq!(true, input.is_mouse_button_toggled(MouseButton::Left));
+        assert_eq!(true, input.is_mouse_button_down(MouseButton::Left));
+        assert_eq!(false, input.is_mouse_button_up(MouseButton::Left));
+        assert_eq!(true, input.is_mouse_button_toggled_down(MouseButton::Left));
+        assert_eq!(false, input.is_mouse_button_toggled_up(MouseButton::Left));
+        assert_eq!(
             ModifiersState::default(),
             input.mouse_button_modifiers_state(MouseButton::Left)
-        ];
+        );
     }
 
     #[test]
@@ -443,36 +494,34 @@ mod tests {
             MouseButton::Left,
         );
 
+        input.set_modifiers(ModifiersState::ALT);
+
         input.register_mouse_input(
             MouseInput {
                 state: ElementState::Released,
-                modifiers: ModifiersState {
-                    alt: true,
-                    ..ModifiersState::default()
-                },
+                modifiers: ModifiersState::empty(),
             },
             MouseButton::Left,
         );
+
+        input.set_modifiers(ModifiersState::LOGO);
 
         input.register_mouse_input(
             MouseInput {
                 state: ElementState::Pressed,
-                modifiers: ModifiersState {
-                    logo: true,
-                    ..ModifiersState::default()
-                },
+                modifiers: ModifiersState::empty(),
             },
             MouseButton::Left,
         );
 
-        assert_eq![
+        assert_eq!(
             true,
-            input.mouse_button_modifiers_state(MouseButton::Left).logo
-        ];
-        assert_eq![
+            input.mouse_button_modifiers_state(MouseButton::Left).logo()
+        );
+        assert_eq!(
             false,
-            input.mouse_button_modifiers_state(MouseButton::Left).alt
-        ];
+            input.mouse_button_modifiers_state(MouseButton::Left).alt()
+        );
     }
 
     #[test]
@@ -482,16 +531,16 @@ mod tests {
         input.register_mouse_input(
             MouseInput {
                 state: ElementState::Pressed,
-                modifiers: ModifiersState::default(),
+                modifiers: ModifiersState::empty(),
             },
             MouseButton::Left,
         );
 
-        assert_eq![true, input.is_mouse_button_toggled(MouseButton::Left)];
+        assert_eq!(true, input.is_mouse_button_toggled(MouseButton::Left));
 
         input.prepare_for_next_frame();
 
-        assert_eq![false, input.is_mouse_button_toggled(MouseButton::Left)];
+        assert_eq!(false, input.is_mouse_button_toggled(MouseButton::Left));
     }
 
     #[test]
@@ -502,26 +551,26 @@ mod tests {
         input.register_mouse_position(123f32, 456f32);
         input.register_mouse_position(3f32, 6f32);
 
-        assert_eq![(3.0, 6.0), input.get_mouse_position()];
-        assert_eq![(3.0, 6.0), input.get_mouse_moved()];
+        assert_eq!((3.0, 6.0), input.get_mouse_position());
+        assert_eq!((3.0, 6.0), input.get_mouse_moved());
 
         input.prepare_for_next_frame();
 
-        assert_eq![(3.0, 6.0), input.get_mouse_position()];
-        assert_eq![(0.0, 0.0), input.get_mouse_moved()];
+        assert_eq!((3.0, 6.0), input.get_mouse_position());
+        assert_eq!((0.0, 0.0), input.get_mouse_moved());
     }
 
     #[test]
     fn accumulate_mouse_wheel_deltas() {
         let mut input = Input::default();
-        input.register_mouse_wheel(0.1);
-        input.register_mouse_wheel(0.8);
-        input.register_mouse_wheel(0.3);
-        assert_eq![1.2, input.get_mouse_wheel()];
+        input.register_mouse_wheel(&MouseScrollDelta::LineDelta(0.0, 0.1));
+        input.register_mouse_wheel(&MouseScrollDelta::LineDelta(0.0, 0.8));
+        input.register_mouse_wheel(&MouseScrollDelta::LineDelta(0.0, 0.3));
+        assert_eq!(1.2, input.get_mouse_wheel());
 
         input.prepare_for_next_frame();
 
-        assert_eq![0.0, input.get_mouse_wheel()];
+        assert_eq!(0.0, input.get_mouse_wheel());
     }
 
     #[test]
