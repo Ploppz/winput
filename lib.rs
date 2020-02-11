@@ -62,14 +62,8 @@ impl Default for Keys {
 
 // ---
 
-#[derive(Clone, Copy, Debug)]
-struct MouseState {
-    state: ElementState,
-    modifiers: ModifiersState,
-}
-
 #[derive(Clone)]
-struct MouseButtons([MouseState; NUM_MOUSE_BUTTONS]);
+struct MouseButtons([MouseInput; NUM_MOUSE_BUTTONS]);
 
 impl fmt::Debug for MouseButtons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -82,7 +76,7 @@ impl fmt::Debug for MouseButtons {
 
 impl Default for MouseButtons {
     fn default() -> Self {
-        let default = MouseState {
+        let default = MouseInput {
             state: ElementState::Released,
             modifiers: ModifiersState::empty(),
         };
@@ -121,7 +115,7 @@ pub struct MouseInput {
 /// This struct accumulates input events and allows them to be used throughout the program. Its
 /// main purpose is to resolve issues of multiple keypresses per-frame as well as accumulating
 /// mouse events such as position and mousewheel events.
-#[derive(Debug, Default, Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct Input {
     keys_now: Keys,
     keys_before: Keys,
@@ -194,6 +188,9 @@ impl Input {
             WindowEvent::MouseWheel { delta, .. } => {
                 self.register_mouse_wheel(delta);
             }
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.register_mouse_input(state, button);
+            }
             _ => {}
         }
     }
@@ -247,11 +244,11 @@ impl Input {
     // ---
 
     /// Register a mouse button event
-    pub fn register_mouse_input(&mut self, state: MouseInput, button: MouseButton) {
-        let index = mouse_button_to_index(button);
+    pub fn register_mouse_input(&mut self, state: &ElementState, button: &MouseButton) {
+        let index = mouse_button_to_index(*button);
         self.mouse_buttons_before.0[index] = self.mouse_buttons_now.0[index];
-        self.mouse_buttons_now.0[index] = MouseState {
-            state: state.state,
+        self.mouse_buttons_now.0[index] = MouseInput {
+            state: *state,
             modifiers: self.current_modifiers,
         };
     }
@@ -448,27 +445,18 @@ mod tests {
         let mut input = Input::default();
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Pressed,
-                modifiers: ModifiersState::default(),
-            },
-            MouseButton::Left,
+            &ElementState::Pressed,
+            &MouseButton::Left,
         );
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Released,
-                modifiers: ModifiersState::default(),
-            },
-            MouseButton::Left,
+            &ElementState::Released,
+            &MouseButton::Left,
         );
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Pressed,
-                modifiers: ModifiersState::default(),
-            },
-            MouseButton::Left,
+            &ElementState::Pressed,
+            &MouseButton::Left,
         );
 
         assert_eq!(true, input.is_mouse_button_toggled(MouseButton::Left));
@@ -487,31 +475,22 @@ mod tests {
         let mut input = Input::default();
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Pressed,
-                modifiers: ModifiersState::default(),
-            },
-            MouseButton::Left,
+            &ElementState::Pressed,
+            &MouseButton::Left,
         );
 
         input.set_modifiers(ModifiersState::ALT);
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Released,
-                modifiers: ModifiersState::empty(),
-            },
-            MouseButton::Left,
+            &ElementState::Released,
+            &MouseButton::Left,
         );
 
         input.set_modifiers(ModifiersState::LOGO);
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Pressed,
-                modifiers: ModifiersState::empty(),
-            },
-            MouseButton::Left,
+            &ElementState::Pressed,
+            &MouseButton::Left,
         );
 
         assert_eq!(
@@ -529,11 +508,8 @@ mod tests {
         let mut input = Input::default();
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Pressed,
-                modifiers: ModifiersState::empty(),
-            },
-            MouseButton::Left,
+            &ElementState::Pressed,
+            &MouseButton::Left,
         );
 
         assert_eq!(true, input.is_mouse_button_toggled(MouseButton::Left));
@@ -591,11 +567,8 @@ mod tests {
         });
 
         input.register_mouse_input(
-            MouseInput {
-                state: ElementState::Pressed,
-                modifiers: ModifiersState::default(),
-            },
-            MouseButton::Other(255),
+            &ElementState::Pressed,
+            &MouseButton::Other(255),
         );
     }
 
