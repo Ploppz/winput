@@ -1,6 +1,6 @@
 [package]
 name = "winput"
-version = "0.5.3"
+version = "0.5.4"
 authors = ["Erlend Hofstad Langseth <3rlendhl@gmail.com>"]
 edition = "2018"
 
@@ -9,4 +9,4 @@ name = "winput"
 path = "lib.rs"
 
 [dependencies]
-winit = "0.21.0"
+winit = "0.22.0"

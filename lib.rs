@@ -153,9 +153,6 @@ impl Input {
     /// This function may completely ignore the event.
     pub fn register_event<'a, T>(&mut self, input: &Event<'a, T>) {
         match input {
-            Event::DeviceEvent { event, .. } => {
-                self.handle_device_event(event);
-            }
             Event::WindowEvent { event, .. } => {
                 self.handle_window_event(event);
             }
@@ -166,15 +163,6 @@ impl Input {
     /// Set the current modifier state.
     pub fn set_modifiers(&mut self, modifiers: ModifiersState) {
         self.current_modifiers = modifiers;
-    }
-
-    fn handle_device_event(&mut self, event: &DeviceEvent) {
-        match event {
-            DeviceEvent::ModifiersChanged(modifiers) => {
-                self.current_modifiers = *modifiers;
-            }
-            _ => {}
-        }
     }
 
     fn handle_window_event<'a>(&mut self, event: &WindowEvent<'a>) {
@@ -190,6 +178,9 @@ impl Input {
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 self.register_mouse_input(state, button);
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                self.current_modifiers = *modifiers;
             }
             _ => {}
         }
