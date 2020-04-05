@@ -128,7 +128,8 @@ pub struct Input {
 
     mouse_wheel: f32,
 
-    mask_mouse: bool,
+    hide_mouse: bool,
+    hide_keys: bool,
     current_modifiers: ModifiersState,
 }
 
@@ -143,7 +144,16 @@ impl Input {
         self.mouse_buttons_before
             .0
             .copy_from_slice(&self.mouse_buttons_now.0);
-        self.mask_mouse = false;
+        self.hide_mouse = false;
+        self.hide_keys = false;
+    }
+    /// Hide any key input for the rest of the current frame.
+    pub fn hide_key_state(&mut self) {
+        self.hide_keys = true;
+    }
+    /// Hide any mouse input for the rest of the current frame.
+    pub fn hide_mouse_state(&mut self) {
+        self.hide_mouse = true;
     }
 
     // ---
@@ -204,17 +214,18 @@ impl Input {
 
     /// Check if a key is pressed
     pub fn is_key_down(&self, keycode: VirtualKeyCode) -> bool {
-        self.keys_now.0[keycode as usize].state == ElementState::Pressed
+        !self.hide_keys && self.keys_now.0[keycode as usize].state == ElementState::Pressed
     }
 
     /// Check if a key is up (released)
     pub fn is_key_up(&self, keycode: VirtualKeyCode) -> bool {
-        self.keys_now.0[keycode as usize].state == ElementState::Released
+        self.hide_keys || self.keys_now.0[keycode as usize].state == ElementState::Released
     }
 
     /// Check if a key has been toggled
     pub fn is_key_toggled(&self, keycode: VirtualKeyCode) -> bool {
-        self.keys_before.0[keycode as usize].state != self.keys_now.0[keycode as usize].state
+        !self.hide_keys
+            && self.keys_before.0[keycode as usize].state != self.keys_now.0[keycode as usize].state
     }
 
     /// Check if a key has been toggled and is pressed
@@ -247,19 +258,19 @@ impl Input {
     /// Check if a mouse button is pressed
     pub fn is_mouse_button_down(&self, button: MouseButton) -> bool {
         let index = mouse_button_to_index(button);
-        !self.mask_mouse && self.mouse_buttons_now.0[index].state == ElementState::Pressed
+        !self.hide_mouse && self.mouse_buttons_now.0[index].state == ElementState::Pressed
     }
 
     /// Check if a mouse button is released (up)
     pub fn is_mouse_button_up(&self, button: MouseButton) -> bool {
         let index = mouse_button_to_index(button);
-        !self.mask_mouse && self.mouse_buttons_now.0[index].state == ElementState::Released
+        !self.hide_mouse && self.mouse_buttons_now.0[index].state == ElementState::Released
     }
 
     /// Check if a mouse button is toggled
     pub fn is_mouse_button_toggled(&self, button: MouseButton) -> bool {
         let index = mouse_button_to_index(button);
-        !self.mask_mouse
+        !self.hide_mouse
             && self.mouse_buttons_before.0[index].state != self.mouse_buttons_now.0[index].state
     }
 
@@ -316,10 +327,6 @@ impl Input {
     }
 
     // ---
-    /// Until `prepare_for_next_frame` is called again, mouse queries will all return false
-    pub fn mask_mouse(&mut self) {
-        self.mask_mouse = true;
-    }
 }
 
 fn mouse_button_to_index(button: MouseButton) -> usize {
@@ -435,20 +442,11 @@ mod tests {
     fn tri_state_mouse_input() {
         let mut input = Input::default();
 
-        input.register_mouse_input(
-            &ElementState::Pressed,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
 
-        input.register_mouse_input(
-            &ElementState::Released,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Released, &MouseButton::Left);
 
-        input.register_mouse_input(
-            &ElementState::Pressed,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
 
         assert_eq!(true, input.is_mouse_button_toggled(MouseButton::Left));
         assert_eq!(true, input.is_mouse_button_down(MouseButton::Left));
@@ -465,24 +463,15 @@ mod tests {
     fn tri_state_mouse_modifiers() {
         let mut input = Input::default();
 
-        input.register_mouse_input(
-            &ElementState::Pressed,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
 
         input.set_modifiers(ModifiersState::ALT);
 
-        input.register_mouse_input(
-            &ElementState::Released,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Released, &MouseButton::Left);
 
         input.set_modifiers(ModifiersState::LOGO);
 
-        input.register_mouse_input(
-            &ElementState::Pressed,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
 
         assert_eq!(
             true,
@@ -498,10 +487,7 @@ mod tests {
     fn mouse_toggled_is_reset_on_next_frame() {
         let mut input = Input::default();
 
-        input.register_mouse_input(
-            &ElementState::Pressed,
-            &MouseButton::Left,
-        );
+        input.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
 
         assert_eq!(true, input.is_mouse_button_toggled(MouseButton::Left));
 
@@ -557,10 +543,7 @@ mod tests {
             modifiers: ModifiersState::default(),
         });
 
-        input.register_mouse_input(
-            &ElementState::Pressed,
-            &MouseButton::Other(255),
-        );
+        input.register_mouse_input(&ElementState::Pressed, &MouseButton::Other(255));
     }
 
     #[test]
