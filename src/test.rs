@@ -218,3 +218,25 @@ fn state_advances_after_preparation() {
     input.prepare_for_next_frame();
     assert!(!input.is_key_toggled_down(VirtualKeyCode::F));
 }
+
+#[test]
+fn hide_mouse_and_keys() {
+    let mut input = Input::default();
+    input.register_key(&KeyboardInput {
+        scancode: 0,
+        state: ElementState::Pressed,
+        virtual_keycode: Some(VirtualKeyCode::F),
+        modifiers: ModifiersState::default(),
+    });
+    input.hide_key_state();
+    assert!(!input.is_key_down(VirtualKeyCode::F));
+    assert!(input.is_key_up(VirtualKeyCode::F));
+    assert!(!input.is_key_toggled_down(VirtualKeyCode::F));
+    assert!(!input.is_key_toggled_up(VirtualKeyCode::F));
+
+    input.register_mouse_input(&ElementState::Pressed, &MouseButton::Left);
+    input.hide_mouse_state();
+    assert!(!input.is_mouse_button_down(MouseButton::Left));
+    assert!(input.is_mouse_button_up(MouseButton::Left));
+    assert!(!input.is_mouse_button_toggled(MouseButton::Left));
+}

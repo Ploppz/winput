@@ -267,7 +267,7 @@ impl Input {
     /// Check if a mouse button is released (up)
     pub fn is_mouse_button_up(&self, button: MouseButton) -> bool {
         let index = mouse_button_to_index(button);
-        !self.hide_mouse && self.mouse_buttons_now.0[index].state == ElementState::Released
+        self.hide_mouse || self.mouse_buttons_now.0[index].state == ElementState::Released
     }
 
     /// Check if a mouse button is toggled
@@ -342,5 +342,4 @@ fn mouse_button_to_index(button: MouseButton) -> usize {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}
