@@ -36,7 +36,7 @@ use winit::event::*;
 #[cfg(test)]
 mod test;
 
-const NUM_KEYS: usize = 161;
+const NUM_KEYS: usize = 163;
 const NUM_MOUSE_BUTTONS: usize = 256 + 3;
 
 // ---
